@@ -1,0 +1,83 @@
+<?php
+
+/**
+ * @file
+ *   Provides an alternative cache backend.
+ */
+
+/**
+ * Implements hook_help().
+ */
+function adbc_help($path, $arg) {
+  switch ($path) {
+    case 'admin/help#adbc':
+      $output = '';
+      $output .= '<h3>' . t('About') . '</h3>';
+      $output .= '<p>' . t('The Alternative Database Cache module is a drop-in replacement for Drupal Core\'s default cache implementation. Its goal is to fix long-standing problems with Drupal\'s core caching mechanism. This module is aimed at those without the resources or knowledge to implement other alternative cache backends (like memcache or APC), but who are still running into problems or limitations with the default backend. That being said, it may still be advantageous to use this as your default cache backend even while using memcache or APC on other bins.');
+      $output .= '<p>' . t('Additional details about the problems this module attempts to solve can be found in the "additional reading" section below.');
+      $output .= '<h3>' . t('Installation') . '</h3>';
+      $output .= '<ol>';
+      $output .= '<li>' . t('Enable this module like you would any module, whether at /admin/modules or via drush.') . '</li>';
+      $output .= '<li>' . t('In your settings.php file, you\'ll need to add the following lines to force Drupal to use the ADBC backend.');
+      $output .= '<pre><code>' . "/**\n * ADBC settings.\n */\n\$conf['cache_backends'][] = './sites/all/modules/adbc/adbc.cache.inc';\n\$conf['cache_default_class'] = 'AlternativeDrupalDatabaseCache';" . '</code></pre></li>';
+      $output .= '<li>' . t('Note: you may need to change the path to adbc.cache.inc depending on how your site\'s structure is set up.') . '</li>';
+      $output .= '</ol>';
+      $output .= '<h3>' . t('Additional Reading') . '</h3>';
+      $output .= '<ul>';
+      $output .= '<li>' . l(t('How Drupal\'s cron is killing you in your sleep'), 'http://www.metaltoad.com/blog/how-drupals-cron-killing-you-your-sleep-simple-cache-warmer', array('attributes' => array('target' => '_blank'))) . '</li>';
+      $output .= '<li>' . l(t('Page and block caches are cleared the same way on cron as on content change'), 'http://drupal.org/node/891600', array('attributes' => array('target' => '_blank'))) . '</li>';
+      $output .= '</ul>';
+      return $output;
+  }
+}
+
+/**
+ * Implements hook_schema_alter().
+ *
+ * @see adbc_enable()
+ */
+function adbc_schema_alter(&$schema) {
+  foreach($schema as &$scheme) {
+    if (_adbc_is_cache_table($scheme)) {
+      unset($scheme['indexes']['expire']);
+      $scheme['indexes']['expire_created'] = array('expire', 'created');
+    }
+  }
+}
+
+/**
+ * Implements hook_modules_enabled().
+ *
+ * This function handles schema alterations for all cache tables enabled after
+ * this module is already installed.
+ */
+function adbc_modules_enabled($modules) {
+  // @todo Flesh out this function.
+}
+
+/**
+ * Determines if a table implements Drupal's default cache schema.
+ *
+ * @todo Replace this function with a function that just returns an array of
+ * cache tables. Refactor code that references this to use that function.
+ *
+ * @param $schema
+ *   An array representing a single table's schema.
+ *
+ * @return
+ *   TRUE if it's a cache table, otherwise FALSE.
+ */
+function _adbc_is_cache_table($schema) {
+  // Cache this because it gets called for every table in a DB.
+  $default_fields = &drupal_static(__FUNCTION__);
+  if (empty($default_fields)) {
+    $default_cache = drupal_get_schema_unprocessed('system', 'cache');
+    $default_fields = array_keys($default_cache['fields']);
+  }
+
+  if (array_keys($schema['fields']) == $default_fields) {
+    return TRUE;
+  }
+
+  return FALSE;
+}

@@ -1,0 +1,6 @@
+name = Alternative Database Cache
+description = Implements an alternative database cache for Drupal.
+package = Performance and scalability
+version = VERSION
+core = 7.x
+files[] = adbc.cache.inc

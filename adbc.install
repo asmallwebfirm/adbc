@@ -1,0 +1,42 @@
+<?php
+
+/**
+ * @file
+ *   Enable/disable functions for the Alternative Database Cache module.
+ */
+
+/**
+ * Implements hook_enable().
+ *
+ * This module purges caches based on individual records' timestamps; so for
+ * performance reasons, we alter all cache bins to include the 'created' column
+ * in their indexes.
+ */
+function adbc_enable() {
+  $schema = drupal_get_schema();
+  module_load_include('module', 'adbc', 'adbc');
+
+  foreach($schema as $table => $definition) {
+    if (_adbc_is_cache_table($definition)) {
+      if (db_drop_index($table, 'expire')) {
+        db_add_index($table, 'expire_created', array('expire', 'created'));
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_disable().
+ */
+function adbc_disable() {
+  $schema = drupal_get_schema();
+  module_load_include('module', 'adbc', 'adbc');
+
+  foreach($schema as $table => $definition) {
+    if (_adbc_is_cache_table($definition)) {
+      if (db_drop_index($table, 'expire_created')) {
+        db_add_index($table, 'expire', array('expire'));
+      }
+    }
+  }
+}
