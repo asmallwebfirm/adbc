@@ -48,18 +48,24 @@ function adbc_schema_alter(&$schema) {
 /**
  * Implements hook_modules_enabled().
  *
- * This function handles schema alterations for all cache tables enabled after
+ * This function handles schema alterations for all cache tables created after
  * this module is already installed.
  */
 function adbc_modules_enabled($modules) {
-  // @todo Flesh out this function.
+  // Loop through all modules that were just enabled.
+  foreach ($modules as $module) {
+    // Return this module's schema and check for cache tables.
+    $schema = drupal_get_schema_unprocessed($module);
+    foreach ($schema as $table => $scheme) {
+      if (_adbc_is_cache_table($scheme)) {
+        _adbc_optimize_index($table);
+      }
+    }
+  }
 }
 
 /**
  * Determines if a table implements Drupal's default cache schema.
- *
- * @todo Replace this function with a function that just returns an array of
- * cache tables. Refactor code that references this to use that function.
  *
  * @param $schema
  *   An array representing a single table's schema.
@@ -80,4 +86,28 @@ function _adbc_is_cache_table($schema) {
   }
 
   return FALSE;
+}
+
+/**
+ * Optimizes a cache table's index for use with this module.
+ *
+ * @param $table
+ *   The name of the table to optimize.
+ */
+function _adbc_optimize_index($table) {
+  if (db_drop_index($table, 'expire')) {
+    db_add_index($table, 'expire_created', array('expire', 'created'));
+  }
+}
+
+/**
+ * Reverts a cache table's index to its default.
+ *
+ * @param $table
+ *   The name of the table to revert.
+ */
+function _adbc_revert_index($table) {
+  if (db_drop_index($table, 'expire_created')) {
+    db_add_index($table, 'expire', array('expire'));
+  }
 }

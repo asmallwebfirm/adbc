@@ -18,9 +18,7 @@ function adbc_enable() {
 
   foreach($schema as $table => $definition) {
     if (_adbc_is_cache_table($definition)) {
-      if (db_drop_index($table, 'expire')) {
-        db_add_index($table, 'expire_created', array('expire', 'created'));
-      }
+      _adbc_optimize_index($table);
     }
   }
 }
@@ -34,9 +32,7 @@ function adbc_disable() {
 
   foreach($schema as $table => $definition) {
     if (_adbc_is_cache_table($definition)) {
-      if (db_drop_index($table, 'expire_created')) {
-        db_add_index($table, 'expire', array('expire'));
-      }
+      _adbc_revert_index($table);
     }
   }
 }
