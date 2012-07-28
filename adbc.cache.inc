@@ -45,8 +45,8 @@ class AlternativeDrupalDatabaseCache extends DrupalDatabaseCache {
   /**
    * Generic garbage collection method.
    *
-   * Here, we're redefining a lot of our garbage collection logic, allowing bins
-   * to be cleaned up on an entry-by-entry basis, rather than at a bin-level.
+   * Rather than respecting minimum cache lifetime at the bin-level, we respect
+   * it on an entry-by-entry basis.
    *
    * Additionally, we've moved session cache handling to a separate method.
    */
@@ -65,19 +65,7 @@ class AlternativeDrupalDatabaseCache extends DrupalDatabaseCache {
         ->execute();
     }
     else {
-      // No minimum cache lifetime. Flush all expired and temporary cache
-      // entries. This is limited to a configurable frequency on cron.
-      $backtrace = debug_backtrace();
-      if ($backtrace[3]['function'] == 'system_cron') {
-        $name = 'cache_garbage_collect_' . $this->bin;
-        $window = variable_get('cache_garbage_collection_frequency', 86400);
-        if (!flood_is_allowed($name, 1, $window, 'cron')) {
-          return;
-        }
-        else {
-          flood_register_event($name, $window, 'cron');
-        }
-      }
+      // No minimum lifetime. Flush all expired and temporary cache entries.
       db_delete($this->bin)
         ->condition('expire', CACHE_PERMANENT, '<>')
         ->condition('expire', REQUEST_TIME, '<')
@@ -116,37 +104,31 @@ class AlternativeDrupalDatabaseCache extends DrupalDatabaseCache {
   /**
    * Implements DrupalCacheInterface::clear().
    *
-   * Rather than re-defining our garbage collection logic, we call the method
-   * directly from within the clear method.
+   * Here, we ensure that cron only runs cache garbage collection at a
+   * configurable frequency, defaulting to 24 hours.
    */
   function clear($cid = NULL, $wildcard = FALSE) {
     if (empty($cid)) {
-      $this->garbageCollection();
+      // Only way to it's from cron is to check the backtrace.
+      $backtrace = debug_backtrace();
+      if ($backtrace[2]['function'] == 'system_cron') {
+        $cache_lifetime = variable_get('cache_lifetime', 0);
+        $cache_garbage_collection_frequency = variable_get('cache_garbage_collection_frequency', 86400);
+        $name = 'cache_garbage_collect_' . $this->bin;
+        $window = max($cache_lifetime, $cache_garbage_collection_frequency);
+        if (flood_is_allowed($name, 1, $window, 'cron')) {
+          $this->garbageCollection();
+          flood_register_event($name, $window, 'cron');
+        }
+      }
+      // Otherwise, clear cache as usual.
+      else {
+        $this->garbageCollection();
+      }
     }
     else {
-      if ($wildcard) {
-        if ($cid == '*') {
-          db_truncate($this->bin)->execute();
-        }
-        else {
-          db_delete($this->bin)
-            ->condition('cid', db_like($cid) . '%', 'LIKE')
-            ->execute();
-        }
-      }
-      elseif (is_array($cid)) {
-        do {
-          db_delete($this->bin)
-            ->condition('cid', array_splice($cid, 0, 1000), 'IN')
-            ->execute();
-        }
-        while (count($cid));
-      }
-      else {
-        db_delete($this->bin)
-          ->condition('cid', $cid)
-          ->execute();
-      }
+      // Normal cache clears use default core logic.
+      return parent::clear($cid, $wildcard);
     }
   }
 }
