@@ -17,7 +17,7 @@
  *
  * @see http://drupal.org/node/891600
  */
-class AlternativeDrupalDatabaseCache extends DrupalDatabaseCache { 
+class AlternativeDrupalDatabaseCache extends DrupalDatabaseCache {
   /**
    * Implements DrupalCacheInterface::getMultiple().
    *
