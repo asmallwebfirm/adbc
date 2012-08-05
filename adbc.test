@@ -1,0 +1,168 @@
+<?php
+
+class AdbcCacheTestCase extends DrupalWebTestCase {
+  protected $default_bin = 'cache';
+  protected $default_cid = 'test_temporary';
+  protected $default_value = 'CacheTest';
+
+  function setUp() {
+    parent::setUp(func_get_args());
+  }
+
+  /**
+   * Check whether or not a cache entry exists.
+   *
+   * @param $cid
+   *   The cache id.
+   * @param $var
+   *   The variable the cache should contain.
+   * @param $bin
+   *   The bin the cache item was stored in.
+   * @return
+   *   TRUE on pass, FALSE on fail.
+   */
+  protected function checkCacheExists($cid, $var, $bin = NULL) {
+    if ($bin == NULL) {
+      $bin = $this->default_bin;
+    }
+
+    $cache = cache_get($cid, $bin);
+
+    return isset($cache->data) && $cache->data == $var;
+  }
+
+  /**
+   * Assert that a cache entry exists.
+   *
+   * @param $message
+   *   Message to display.
+   * @param $var
+   *   The variable the cache should contain.
+   * @param $cid
+   *   The cache id.
+   * @param $bin
+   *   The bin the cache item was stored in.
+   */
+  protected function assertCacheExists($message, $var = NULL, $cid = NULL, $bin = NULL) {
+    if ($bin == NULL) {
+      $bin = $this->default_bin;
+    }
+    if ($cid == NULL) {
+      $cid = $this->default_cid;
+    }
+    if ($var == NULL) {
+      $var = $this->default_value;
+    }
+
+    $this->assertTrue($this->checkCacheExists($cid, $var, $bin), $message);
+  }
+
+  /**
+   * Assert that a cache entry has been removed.
+   *
+   * @param $message
+   *   Message to display.
+   * @param $cid
+   *   The cache id.
+   * @param $bin
+   *   The bin the cache item was stored in.
+   */
+  function assertCacheRemoved($message, $cid = NULL, $bin = NULL) {
+    if ($bin == NULL) {
+      $bin = $this->default_bin;
+    }
+    if ($cid == NULL) {
+      $cid = $this->default_cid;
+    }
+
+    $cache = cache_get($cid, $bin);
+    $this->assertFalse($cache, $message);
+  }
+
+  /**
+   * Perform the general wipe.
+   *
+   * @param $bin
+   *   The bin to perform the wipe on.
+   */
+  protected function generalWipe($bin = NULL) {
+    if ($bin == NULL) {
+      $bin = $this->default_bin;
+    }
+
+    cache_clear_all(NULL, $bin);
+  }
+
+  /**
+   * Setup minimum lifetime settings for caching.
+   *
+   * @param $time
+   *   The minimum time in seconds the cache should live.
+   */
+  protected function setupLifetime($time) {
+    variable_set('cache_lifetime', $time);
+    variable_set('cache_flush', 0);
+  }
+}
+
+/**
+ * Test cache clearing methods for ADBC.
+ */
+class AdbcCacheClearCase extends AdbcCacheTestCase {
+  /**
+   * Implements getInfo().
+   */
+  public static function getInfo() {
+    return array (
+      'name' => 'ADBC cache clear test',
+      'description' => t('Check that caches are cleared correctly.'),
+      'group' => 'ADBC',
+    );
+  }
+
+  public function setUp() {
+    $this->default_bin = 'cache_page';
+    $this->default_value = $this->randomName(10);
+
+    parent::setUp('adbc');
+  }
+
+  /**
+   * Tests CACHE_TEMPORARY behavior.
+   */
+  function testCacheTemporary() {
+    $cache = new AlternativeDrupalDatabaseCache($this->default_bin);
+    // Set a permanent and temporary cache item.
+    $cache->set('test_cache_temporary', $this->default_value, CACHE_TEMPORARY);
+    $cache->set('test_cache_permanent', $this->default_value);
+    // Also set expired and yet to expire cache items.
+    $cache->set('test_cache_expired', $this->default_value, REQUEST_TIME - 1000);
+    $cache->set('test_cache_not_expired', $this->default_value, REQUEST_TIME + 1000);
+    $this->assertTrue($this->checkCacheExists('test_cache_temporary', $this->default_value));
+    $this->assertTrue($this->checkCacheExists('test_cache_permanent', $this->default_value));
+    $this->assertTrue($this->checkCacheExists('test_cache_expired', $this->default_value));
+    $this->assertTrue($this->checkCacheExists('test_cache_not_expired', $this->default_value));
+
+    // Clear all items in the bin. Only the temporary and expired items should
+    // be removed.
+    $cache->clear();
+    $this->assertFalse($this->checkCacheExists('test_cache_temporary', $this->default_value));
+    $this->assertTrue($this->checkCacheExists('test_cache_permanent', $this->default_value));
+    $this->assertFalse($this->checkCacheExists('test_cache_expired', $this->default_value));
+    $this->assertTrue($this->checkCacheExists('test_cache_not_expired', $this->default_value));
+
+    // Re-add the items we just cleared.
+    $cache->set('test_cache_temporary', $this->default_value, CACHE_TEMPORARY);
+    $cache->set('test_cache_expired', $this->default_value, REQUEST_TIME - 1000);
+
+    // Set a minimum cache lifetime.
+    $this->setupLifetime(300);
+
+    // Now after clearing the bin, only the expired item should be removed.
+    $cache->clear();
+    $this->assertTrue($this->checkCacheExists('test_cache_temporary', $this->default_value));
+    $this->assertTrue($this->checkCacheExists('test_cache_permanent', $this->default_value));
+    $this->assertFalse($this->checkCacheExists('test_cache_expired', $this->default_value));
+    $this->assertTrue($this->checkCacheExists('test_cache_not_expired', $this->default_value));
+  }
+}

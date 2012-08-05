@@ -4,3 +4,4 @@ package = Performance and scalability
 version = VERSION
 core = 7.x
 files[] = adbc.cache.inc
+files[] = adbc.test
