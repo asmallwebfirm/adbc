@@ -38,7 +38,7 @@ function adbc_help($path, $arg) {
  * @see adbc_enable()
  */
 function adbc_schema_alter(&$schema) {
-  foreach($schema as &$scheme) {
+  foreach ($schema as &$scheme) {
     if (_adbc_is_cache_table($scheme)) {
       unset($scheme['indexes']['expire']);
       $scheme['indexes']['expire_created'] = array('expire', 'created');

@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * @file
+ *   Tests for the Alternative Database Cache module.
+ */
+
 class AdbcCacheTestCase extends DrupalWebTestCase {
   protected $default_bin = 'cache';
   protected $default_cid = 'test_temporary';
@@ -113,7 +118,7 @@ class AdbcCacheClearCase extends AdbcCacheTestCase {
    * Implements getInfo().
    */
   public static function getInfo() {
-    return array (
+    return array(
       'name' => 'ADBC cache clear test',
       'description' => t('Check that caches are cleared correctly.'),
       'group' => 'ADBC',
